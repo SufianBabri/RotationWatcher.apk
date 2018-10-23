@@ -1,34 +1,28 @@
 package jp.co.cyberagent.stf.rotationwatcher;
 
-import android.content.Context;
-import android.os.Build;
-import android.os.RemoteException;
-import android.os.ServiceManager;
-import android.view.IRotationWatcher;
-import android.view.IWindowManager;
+import jp.co.cyberagent.stf.compat.WindowManagerWrapper;
 
 public class RotationWatcher extends Thread {
     private static final String TAG = "RotationWatcher";
 
-    // Get an IWindowManager using private APIs.
-    private IWindowManager wm = IWindowManager.Stub.asInterface(
-            ServiceManager.getService(Context.WINDOW_SERVICE));
+    // This wrapper is copied from https://github.com/openstf/STFService.apk
+    // to fix https://github.com/openstf/RotationWatcher.apk/issues/3
+    private WindowManagerWrapper wmw = new WindowManagerWrapper();
 
     @Override
     public void run() {
-        IRotationWatcher watcher = new IRotationWatcher.Stub() {
+        WindowManagerWrapper.RotationWatcher watcher = new WindowManagerWrapper.RotationWatcher() {
             @Override
-            public void onRotationChanged(int rotation) throws RemoteException {
+            public void onRotationChanged(int rotation) {
                 report(rotation);
             }
         };
-
         try {
             // Get the rotation we have right now.
-            report(wm.getRotation());
+            report(wmw.getRotation());
 
             // Watch for changes in rotation.
-            wm.watchRotation(watcher);
+            wmw.watchRotation(watcher);
 
             // Just keep waiting.
             synchronized (this) {
@@ -37,24 +31,14 @@ public class RotationWatcher extends Thread {
                 }
             }
         }
-        catch (RemoteException e) {
-            e.printStackTrace();
-        }
         catch (InterruptedException e) {
             // Okay
         }
         finally {
-            // Sadly, wm.removeRotationWatcher() is only available on API >= 18. Instead, we
+            // Sadly, wmw.removeRotationWatcher() is only available on API >= 18. Instead, we
             // must make sure that whole process dies, causing DeathRecipient to reap the
             // watcher.
-            if (Build.VERSION.SDK_INT >= 18) {
-                try {
-                    wm.removeRotationWatcher(watcher);
-                }
-                catch (RemoteException e) {
-                    // No-op
-                }
-            }
+//            wmw.removeRotationWatcher(androidRotationWatcher);
         }
     }
 
